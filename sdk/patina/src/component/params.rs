@@ -413,14 +413,14 @@ unsafe impl<T: Default + 'static> Param for Config<'_, T> {
     fn init_state(storage: &mut Storage, meta: &mut MetaData) -> Self::State {
         let id = storage.add_config_default_if_not_present::<T>();
 
-        debug_assert!(
+        assert!(
             !meta.access().has_writes_all_configs(),
             "Config<{0}> in component {1} conflicts with a previous &mut Storage access.",
             core::any::type_name::<T>(),
             meta.name(),
         );
 
-        debug_assert!(
+        assert!(
             !meta.access().has_config_write(id),
             "Config<{0}> in component {1} conflicts with a previous ConfigMut<{0}> access.",
             core::any::type_name::<T>(),
@@ -517,25 +517,25 @@ unsafe impl<T: Default + 'static> Param for ConfigMut<'_, T> {
         // it to be mutable.
         storage.unlock_config(id);
 
-        debug_assert!(
+        assert!(
             !meta.access().has_writes_all_configs(),
             "ConfigMut<{0}> in component {1} conflicts with a previous &mut Storage access.",
             core::any::type_name::<T>(),
             meta.name(),
         );
-        debug_assert!(
+        assert!(
             !meta.access().has_reads_all_configs(),
             "ConfigMut<{0}> in component {1} conflicts with a previous &Storage access.",
             core::any::type_name::<T>(),
             meta.name(),
         );
-        debug_assert!(
+        assert!(
             !meta.access().has_config_write(id),
             "ConfigMut<{0}> in component {1} conflicts with a previous ConfigMut<{0}> access.",
             core::any::type_name::<T>(),
             meta.name(),
         );
-        debug_assert!(
+        assert!(
             !meta.access().has_config_read(id),
             "ConfigMut<{0}> in component {1} conflicts with a previous Config<{0}> access.",
             core::any::type_name::<T>(),
