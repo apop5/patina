@@ -87,6 +87,8 @@ words:
   - fnent
   - funty
   - fvmain
+  - fxrstor
+  - fxsave
   - gantt
   - gdbstub
   - genfw
@@ -164,6 +166,7 @@ words:
   - pyserial
   - pywin
   - qword
+  - rdram
   - reentrancy
   - regsvr
   - relia
@@ -173,6 +176,8 @@ words:
   - ruint
   - rwlock
   - sctlr
+  - sgram
+  - sigle
   - smbus
   - smcport
   - smiport
