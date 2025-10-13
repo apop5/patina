@@ -16,6 +16,63 @@ url = "https://raw.githubusercontent.com/google/supply-chain/main/audits.toml"
 [imports.mozilla]
 url = "https://raw.githubusercontent.com/mozilla/supply-chain/main/audits.toml"
 
+[policy.patina]
+audit-as-crates-io = true
+
+[policy.patina_adv_logger]
+audit-as-crates-io = true
+
+[policy.patina_debugger]
+audit-as-crates-io = true
+
+[policy.patina_dxe_core]
+audit-as-crates-io = true
+
+[policy.patina_ffs]
+audit-as-crates-io = true
+
+[policy.patina_ffs_extractors]
+audit-as-crates-io = true
+
+[policy.patina_internal_collections]
+audit-as-crates-io = true
+
+[policy.patina_internal_cpu]
+audit-as-crates-io = true
+
+[policy.patina_internal_depex]
+audit-as-crates-io = true
+
+[policy.patina_internal_device_path]
+audit-as-crates-io = true
+
+[policy.patina_lzma_rs]
+audit-as-crates-io = true
+
+[policy.patina_macro]
+audit-as-crates-io = true
+
+[policy.patina_mm]
+audit-as-crates-io = true
+
+[policy.patina_mtrr]
+audit-as-crates-io = true
+
+[policy.patina_paging]
+audit-as-crates-io = true
+
+[policy.patina_performance]
+audit-as-crates-io = true
+
+[policy.patina_pi]
+audit-as-crates-io = true
+
+[policy.patina_samples]
+audit-as-crates-io = true
+
+[policy.patina_stacktrace]
+audit-as-crates-io = true
+
 [[exemptions.aarch64-cpu]]
 version = "10.0.0"
 criteria = "safe-to-deploy"
@@ -252,6 +309,10 @@ criteria = "safe-to-deploy"
 version = "0.7.8"
 criteria = "safe-to-deploy"
 
+[[exemptions.generic-array]]
+version = "0.14.8"
+criteria = "safe-to-run"
+
 [[exemptions.getrandom]]
 version = "0.2.16"
 criteria = "safe-to-run"
@@ -347,6 +408,86 @@ criteria = "safe-to-run"
 [[exemptions.parity-scale-codec-derive]]
 version = "3.7.5"
 criteria = "safe-to-run"
+
+[[exemptions.patina]]
+version = "11.2.0"
+criteria = "safe-to-deploy"
+
+[[exemptions.patina_adv_logger]]
+version = "11.2.0"
+criteria = "safe-to-deploy"
+
+[[exemptions.patina_debugger]]
+version = "11.2.0"
+criteria = "safe-to-deploy"
+
+[[exemptions.patina_dxe_core]]
+version = "11.2.0"
+criteria = "safe-to-deploy"
+
+[[exemptions.patina_ffs]]
+version = "11.2.0"
+criteria = "safe-to-deploy"
+
+[[exemptions.patina_ffs_extractors]]
+version = "11.2.0"
+criteria = "safe-to-deploy"
+
+[[exemptions.patina_internal_collections]]
+version = "11.2.0"
+criteria = "safe-to-deploy"
+
+[[exemptions.patina_internal_cpu]]
+version = "11.2.0"
+criteria = "safe-to-deploy"
+
+[[exemptions.patina_internal_depex]]
+version = "11.2.0"
+criteria = "safe-to-deploy"
+
+[[exemptions.patina_internal_device_path]]
+version = "11.2.0"
+criteria = "safe-to-deploy"
+
+[[exemptions.patina_lzma_rs]]
+version = "0.3.1"
+criteria = "safe-to-deploy"
+
+[[exemptions.patina_macro]]
+version = "11.2.0"
+criteria = "safe-to-deploy"
+
+[[exemptions.patina_mm]]
+version = "11.2.0"
+criteria = "safe-to-deploy"
+
+[[exemptions.patina_mtrr]]
+version = "1.1.0"
+criteria = "safe-to-deploy"
+
+[[exemptions.patina_paging]]
+version = "9.0.1"
+criteria = "safe-to-deploy"
+
+[[exemptions.patina_performance]]
+version = "11.2.0"
+criteria = "safe-to-deploy"
+
+[[exemptions.patina_pi]]
+version = "11.2.0"
+criteria = "safe-to-deploy"
+
+[[exemptions.patina_samples]]
+version = "11.2.0"
+criteria = "safe-to-deploy"
+
+[[exemptions.patina_smbios]]
+version = "11.2.0"
+criteria = "safe-to-deploy"
+
+[[exemptions.patina_stacktrace]]
+version = "11.2.0"
+criteria = "safe-to-deploy"
 
 [[exemptions.pest]]
 version = "2.8.3"
