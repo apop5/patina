@@ -224,22 +224,22 @@ user-login = "cuviper"
 user-name = "Josh Stone"
 
 [[publisher.regex]]
-version = "1.11.3"
-when = "2025-09-25"
+version = "1.12.1"
+when = "2025-10-11"
 user-id = 189
 user-login = "BurntSushi"
 user-name = "Andrew Gallant"
 
 [[publisher.regex-automata]]
-version = "0.4.11"
-when = "2025-09-25"
+version = "0.4.12"
+when = "2025-10-11"
 user-id = 189
 user-login = "BurntSushi"
 user-name = "Andrew Gallant"
 
 [[publisher.regex-syntax]]
-version = "0.8.6"
-when = "2025-08-24"
+version = "0.8.7"
+when = "2025-10-11"
 user-id = 189
 user-login = "BurntSushi"
 user-name = "Andrew Gallant"
