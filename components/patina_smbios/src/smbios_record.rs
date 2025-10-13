@@ -147,36 +147,55 @@ impl SmbiosSerializer {
 
 /// Field layout description for generic serialization
 pub trait SmbiosFieldLayout {
+    /// Returns the field layout for this SMBIOS record type
     fn field_layout() -> FieldLayout;
 }
 
+/// Field layout information for SMBIOS records
 #[derive(Debug, Clone)]
 pub struct FieldLayout {
+    /// List of fields in the record
     pub fields: Vec<FieldInfo>,
 }
 
 impl FieldLayout {
+    /// Calculates the total size of all fields
     pub fn total_size(&self) -> usize {
         self.fields.iter().map(|f| f.size()).sum()
     }
 }
 
+/// Information about a field in an SMBIOS record
 #[derive(Debug, Clone)]
 pub struct FieldInfo {
+    /// Field name
     pub name: &'static str,
+    /// Field type and offset information
     pub field_type: FieldType,
 }
 
+/// Field type information for SMBIOS records
 #[derive(Debug, Clone)]
 pub enum FieldType {
-    U8(usize),                               // offset
-    U16(usize),                              // offset
-    U32(usize),                              // offset
-    U64(usize),                              // offset
-    ByteArray { offset: usize, len: usize }, // offset, length
+    /// 8-bit unsigned integer at the specified offset
+    U8(usize),
+    /// 16-bit unsigned integer at the specified offset
+    U16(usize),
+    /// 32-bit unsigned integer at the specified offset
+    U32(usize),
+    /// 64-bit unsigned integer at the specified offset
+    U64(usize),
+    /// Byte array at the specified offset with the given length
+    ByteArray {
+        /// Offset in the structure
+        offset: usize,
+        /// Length of the array
+        len: usize
+    },
 }
 
 impl FieldInfo {
+    /// Returns the size of this field in bytes
     pub fn size(&self) -> usize {
         match self.field_type {
             FieldType::U8(_) => 1,
@@ -288,19 +307,33 @@ macro_rules! impl_smbios_record {
 /// During serialization, the string pool is converted to the SMBIOS null-terminated string
 /// format and appended after the structured data.
 pub struct Type0PlatformFirmwareInformation {
+    /// SMBIOS table header
     pub header: SmbiosTableHeader,
-    pub vendor: u8,           // String index
-    pub firmware_version: u8, // String index
+    /// Vendor string index
+    pub vendor: u8,
+    /// Firmware version string index
+    pub firmware_version: u8,
+    /// BIOS starting address segment
     pub bios_starting_address_segment: u16,
-    pub firmware_release_date: u8, // String index
+    /// Firmware release date string index
+    pub firmware_release_date: u8,
+    /// Firmware ROM size
     pub firmware_rom_size: u8,
+    /// BIOS characteristics
     pub characteristics: u64,
+    /// BIOS characteristics extension byte 1
     pub characteristics_ext1: u8,
+    /// BIOS characteristics extension byte 2
     pub characteristics_ext2: u8,
+    /// System BIOS major release
     pub system_bios_major_release: u8,
+    /// System BIOS minor release
     pub system_bios_minor_release: u8,
+    /// Embedded controller firmware major release
     pub embedded_controller_major_release: u8,
+    /// Embedded controller firmware minor release
     pub embedded_controller_minor_release: u8,
+    /// Extended BIOS ROM size
     pub extended_bios_rom_size: u16,
 
     /// String pool containing the actual string content.
@@ -341,15 +374,24 @@ impl_smbios_record!(
 ///
 /// See [`Type0PlatformFirmwareInformation`] for detailed documentation on proper usage.
 pub struct Type1SystemInformation {
+    /// SMBIOS table header
     pub header: SmbiosTableHeader,
-    pub manufacturer: u8,  // String index
-    pub product_name: u8,  // String index
-    pub version: u8,       // String index
-    pub serial_number: u8, // String index
+    /// Manufacturer string index
+    pub manufacturer: u8,
+    /// Product name string index
+    pub product_name: u8,
+    /// Version string index
+    pub version: u8,
+    /// Serial number string index
+    pub serial_number: u8,
+    /// System UUID
     pub uuid: [u8; 16],
+    /// Wake-up type
     pub wake_up_type: u8,
-    pub sku_number: u8, // String index
-    pub family: u8,     // String index
+    /// SKU number string index
+    pub sku_number: u8,
+    /// Family string index
+    pub family: u8,
 
     /// String pool (NOT part of binary SMBIOS format - see struct documentation)
     pub string_pool: Vec<String>,
@@ -379,16 +421,27 @@ impl_smbios_record!(
 ///
 /// See [`Type0PlatformFirmwareInformation`] for detailed documentation on proper usage.
 pub struct Type2BaseboardInformation {
+    /// SMBIOS table header
     pub header: SmbiosTableHeader,
-    pub manufacturer: u8,  // String index
-    pub product: u8,       // String index
-    pub version: u8,       // String index
-    pub serial_number: u8, // String index
-    pub asset_tag: u8,     // String index
+    /// Manufacturer string index
+    pub manufacturer: u8,
+    /// Product string index
+    pub product: u8,
+    /// Version string index
+    pub version: u8,
+    /// Serial number string index
+    pub serial_number: u8,
+    /// Asset tag string index
+    pub asset_tag: u8,
+    /// Feature flags
     pub feature_flags: u8,
-    pub location_in_chassis: u8, // String index
+    /// Location in chassis string index
+    pub location_in_chassis: u8,
+    /// Chassis handle
     pub chassis_handle: u16,
+    /// Board type
     pub board_type: u8,
+    /// Number of contained object handles
     pub contained_object_handles: u8,
 
     /// String pool (NOT part of binary SMBIOS format - see struct documentation)
@@ -421,20 +474,35 @@ impl_smbios_record!(
 ///
 /// See [`Type0PlatformFirmwareInformation`] for detailed documentation on proper usage.
 pub struct Type3SystemEnclosure {
+    /// SMBIOS table header
     pub header: SmbiosTableHeader,
-    pub manufacturer: u8, // String index
+    /// Manufacturer string index
+    pub manufacturer: u8,
+    /// Enclosure type
     pub enclosure_type: u8,
-    pub version: u8,          // String index
-    pub serial_number: u8,    // String index
-    pub asset_tag_number: u8, // String index
+    /// Version string index
+    pub version: u8,
+    /// Serial number string index
+    pub serial_number: u8,
+    /// Asset tag number string index
+    pub asset_tag_number: u8,
+    /// Boot-up state
     pub bootup_state: u8,
+    /// Power supply state
     pub power_supply_state: u8,
+    /// Thermal state
     pub thermal_state: u8,
+    /// Security status
     pub security_status: u8,
+    /// OEM-defined data
     pub oem_defined: u32,
+    /// Height in rack units
     pub height: u8,
+    /// Number of power cords
     pub number_of_power_cords: u8,
+    /// Number of contained elements
     pub contained_element_count: u8,
+    /// Length of each contained element record
     pub contained_element_record_length: u8,
 
     /// String pool (NOT part of binary SMBIOS format - see struct documentation)

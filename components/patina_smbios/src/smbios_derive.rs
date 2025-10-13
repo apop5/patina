@@ -24,6 +24,7 @@ use r_efi::efi::PhysicalAddress;
 use spin::Mutex;
 use zerocopy_derive::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
+/// SMBIOS handle type (16-bit identifier for SMBIOS records)
 pub type SmbiosHandle = u16;
 
 /// Special handle value for automatic assignment
@@ -46,16 +47,25 @@ pub const SMBIOS_STRING_MAX_LENGTH: usize = 64;
 /// Enhanced error handling
 #[derive(Debug, Clone, PartialEq)]
 pub enum SmbiosError {
+    /// Invalid parameter provided
     InvalidParameter,
+    /// Out of memory or other resources
     OutOfResources,
+    /// The specified handle is already in use
     HandleAlreadyInUse,
+    /// The specified handle was not found
     HandleNotFound,
+    /// Unsupported SMBIOS record type
     UnsupportedRecordType,
+    /// Invalid handle value
     InvalidHandle,
+    /// String exceeds maximum allowed length
     StringTooLong,
+    /// Buffer is too small for the operation
     BufferTooSmall,
 }
 
+/// Trait for managing SMBIOS records
 pub trait SmbiosRecords<'a> {
     // Note: The unsafe `add` method has been removed. It was only needed for C protocol
     // compatibility, but that use case is now handled by the efiapi wrapper which converts
@@ -139,18 +149,29 @@ pub trait SmbiosRecords<'a> {
 #[repr(C, packed)]
 #[derive(Clone, Copy)]
 pub struct Smbios30EntryPoint {
-    pub anchor_string: [u8; 5], // "_SM3_"
+    /// Anchor string: "_SM3_"
+    pub anchor_string: [u8; 5],
+    /// Entry point checksum
     pub checksum: u8,
+    /// Length of the entry point structure
     pub length: u8,
+    /// SMBIOS major version
     pub major_version: u8,
+    /// SMBIOS minor version
     pub minor_version: u8,
+    /// SMBIOS docrev
     pub doc_rev: u8,
+    /// Entry point revision
     pub revision: u8,
+    /// Reserved field
     pub reserved: u8,
+    /// Maximum size of SMBIOS table
     pub table_max_size: u32,
+    /// Physical address of SMBIOS table
     pub table_address: u64,
 }
 
+/// SMBIOS table manager
 pub struct SmbiosManager {
     inner: RefCell<SmbiosManagerInner>,
 }
@@ -186,6 +207,7 @@ impl Clone for SmbiosManagerInner {
 }
 
 impl SmbiosManager {
+    /// Creates a new SMBIOS manager with the specified version
     pub fn new(major_version: u8, minor_version: u8) -> Self {
         Self {
             inner: RefCell::new(SmbiosManagerInner {
@@ -674,16 +696,18 @@ impl SmbiosRecords<'static> for SmbiosManager {
     }
 }
 
-/// SMBIOS table header structure
-#[repr(C, packed)]
-#[derive(Debug, Clone, FromBytes, IntoBytes, Immutable, KnownLayout)]
+/// SMBIOS table header
 pub struct SmbiosTableHeader {
+    /// SMBIOS record type
     pub record_type: SmbiosType,
+    /// Length of the structured portion
     pub length: u8,
+    /// SMBIOS handle
     pub handle: SmbiosHandle,
 }
 
 impl SmbiosTableHeader {
+    /// Creates a new SMBIOS table header
     pub fn new(record_type: SmbiosType, length: u8, handle: SmbiosHandle) -> Self {
         Self { record_type, length, handle }
     }
@@ -692,14 +716,20 @@ impl SmbiosTableHeader {
 /// Internal SMBIOS record representation
 #[derive(Clone)]
 pub struct SmbiosRecord {
+    /// SMBIOS table header
     pub header: SmbiosTableHeader,
+    /// Optional handle of the producer that created this record
     pub producer_handle: Option<Handle>,
-    pub data: Vec<u8>, // Complete record including strings
+    /// Complete record data including strings
+    pub data: Vec<u8>,
     string_count: usize,
+    /// Whether this record is included in the 32-bit table
     pub smbios32_table: bool,
+    /// Whether this record is included in the 64-bit table
     pub smbios64_table: bool,
 }
 
+/// Builder for constructing SMBIOS records
 pub struct SmbiosRecordBuilder {
     record_type: u8,
     data: Vec<u8>,
@@ -707,22 +737,26 @@ pub struct SmbiosRecordBuilder {
 }
 
 impl SmbiosRecordBuilder {
+    /// Creates a new SMBIOS record builder for the specified record type
     pub fn new(record_type: u8) -> Self {
         Self { record_type, data: Vec::new(), strings: Vec::new() }
     }
 
+    /// Adds a field to the record
     pub fn add_field<T: Copy>(mut self, value: T) -> Self {
         let bytes = unsafe { core::slice::from_raw_parts(&value as *const T as *const u8, core::mem::size_of::<T>()) };
         self.data.extend_from_slice(bytes);
         self
     }
 
+    /// Adds a string to the record's string pool
     pub fn add_string(mut self, s: String) -> Result<Self, SmbiosError> {
         SmbiosManager::validate_string(&s)?;
         self.strings.push(s);
         Ok(self)
     }
 
+    /// Builds the complete SMBIOS record as a byte vector
     pub fn build(self) -> Result<Vec<u8>, SmbiosError> {
         let mut record = Vec::new();
 
