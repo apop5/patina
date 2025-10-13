@@ -27,8 +27,6 @@ unsafe impl Sync for RuntimeData {}
 unsafe impl Send for RuntimeData {}
 
 static RUNTIME_DATA: Mutex<RuntimeData> = Mutex::new(RuntimeData::new());
-static RUNTIME_EVENTS: Mutex<BTreeMap<usize, crate::event_db::Event, &'static crate::allocator::UefiAllocator>> =
-    Mutex::new(BTreeMap::new_in(&crate::allocator::EFI_RUNTIME_SERVICES_DATA_ALLOCATOR));
 
 impl RuntimeData {
     const fn new() -> Self {

@@ -34,6 +34,7 @@ words:
   - anstyle
   - antras
   - armasm
+  - athlon
   - autocfg
   - bitvec
   - bucketize
@@ -42,7 +43,13 @@ words:
   - cdecl
   - cdram
   - cdrom
+  - celeron
+  - centronics
   - clangpdb
+  - clflush
+  - clfsh
+  - cmpxchg
+  - corem
   - corosensei
   - coverity
   - cpuid
@@ -59,17 +66,22 @@ words:
   - dnested
   - docsrs
   - dtolnay
+  - duron
   - dword
   - dxefv
   - dxeipl
   - edkii
   - edram
+  - familyi
+  - fbdimm
+  - feprom
   - eeprom
   - efficeon
   - efiapi
   - eficall
   - efierror
   - eflags
+  - eprom
   - epage
   - fastrlp
   - fnent
@@ -104,10 +116,14 @@ words:
   - keccak
   - libyaml
   - linkme
+  - loong
+  - loongson
   - longjmp
+  - lpddr
   - lzmatest
   - mdbook
   - mdscr
+  - mipsr
   - mmiport
   - mmram
   - mpidr
@@ -122,12 +138,14 @@ words:
   - ntdll
   - ntohl
   - ntohs
+  - numberof
   - nvdimm
   - oleaut
   - oorandom
   - openvmm
   - opinfo
   - oprom
+  - opteron
   - ordinalize
   - oslar
   - oslsr
@@ -170,6 +188,7 @@ words:
   - tiano
   - tianocore
   - tolnay
+  - turion
   - typenum
   - typer
   - uefiext
