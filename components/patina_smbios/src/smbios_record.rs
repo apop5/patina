@@ -190,7 +190,7 @@ pub enum FieldType {
         /// Offset in the structure
         offset: usize,
         /// Length of the array
-        len: usize
+        len: usize,
     },
 }
 

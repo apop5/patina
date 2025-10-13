@@ -21,7 +21,6 @@ use r_efi::efi;
 use r_efi::efi::Handle;
 use r_efi::efi::PhysicalAddress;
 use spin::Mutex;
-use zerocopy_derive::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
 /// SMBIOS handle type (16-bit identifier for SMBIOS records)
 pub type SmbiosHandle = u16;
@@ -696,6 +695,8 @@ impl SmbiosRecords<'static> for SmbiosManager {
 }
 
 /// SMBIOS table header
+#[derive(Debug, Clone, Copy)]
+#[repr(C, packed)]
 pub struct SmbiosTableHeader {
     /// SMBIOS record type
     pub record_type: SmbiosType,
@@ -709,6 +710,11 @@ impl SmbiosTableHeader {
     /// Creates a new SMBIOS table header
     pub fn new(record_type: SmbiosType, length: u8, handle: SmbiosHandle) -> Self {
         Self { record_type, length, handle }
+    }
+
+    /// Converts the header to a byte slice
+    pub fn as_bytes(&self) -> &[u8] {
+        unsafe { core::slice::from_raw_parts(self as *const Self as *const u8, core::mem::size_of::<Self>()) }
     }
 }
 
