@@ -674,7 +674,7 @@ impl SmbiosRecords<'static> for SmbiosManager {
             }
 
             *smbios_handle = record.header.handle;
-            return Ok((record.header.clone(), record.producer_handle));
+            return Ok((record.header, record.producer_handle));
         }
 
         *smbios_handle = SMBIOS_HANDLE_PI_RESERVED;
