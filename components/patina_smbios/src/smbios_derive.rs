@@ -1187,4 +1187,578 @@ mod tests {
         assert_eq!(found_header.record_type, Type0PlatformFirmwareInformation::RECORD_TYPE);
         assert_eq!(search_handle, handle);
     }
+
+    #[test]
+    fn test_manager_creation_various_versions() {
+        let versions = [(2, 0), (2, 8), (3, 0), (3, 8), (3, 9)];
+        for (major, minor) in versions {
+            let manager = SmbiosManager::new(major, minor);
+            let (m, n) = manager.version();
+            assert_eq!(m, major);
+            assert_eq!(n, minor);
+        }
+    }
+
+    #[test]
+    fn test_manager_clone() {
+        let manager1 = SmbiosManager::new(3, 9);
+        let minimal_record: [u8; 6] = [1, 4, 0, 0, 0, 0];
+        let handle1 = manager1.add_from_bytes(None, &minimal_record).unwrap();
+
+        let manager2 = manager1.clone();
+        let (major, minor) = manager2.version();
+        assert_eq!(major, 3);
+        assert_eq!(minor, 9);
+
+        let mut search = SMBIOS_HANDLE_PI_RESERVED;
+        let (header, _) = manager2.get_next(&mut search, None).unwrap();
+        let handle = header.handle;
+        assert_eq!(handle, handle1);
+    }
+
+    #[test]
+    fn test_add_record_with_single_string() {
+        let manager = SmbiosManager::new(3, 9);
+        let record = [1, 4, 0, 0, b'T', b'e', b's', b't', 0, 0];
+        let handle = manager.add_from_bytes(None, &record).unwrap();
+        assert_eq!(handle, 1);
+    }
+
+    #[test]
+    fn test_add_record_with_multiple_strings() {
+        let manager = SmbiosManager::new(3, 9);
+        let record = [
+            1, 4, 0, 0, b'F', b'i', b'r', b's', b't', 0, b'S', b'e', b'c', b'o', b'n', b'd', 0, b'T', b'h', b'i', b'r',
+            b'd', 0, 0,
+        ];
+        let handle = manager.add_from_bytes(None, &record).unwrap();
+        assert_eq!(handle, 1);
+    }
+
+    #[test]
+    fn test_add_multiple_records_sequential_handles() {
+        let manager = SmbiosManager::new(3, 9);
+        let record1: [u8; 6] = [1, 4, 0, 0, 0, 0];
+        let record2: [u8; 6] = [2, 4, 0, 0, 0, 0];
+        let record3: [u8; 6] = [3, 4, 0, 0, 0, 0];
+
+        let handle1 = manager.add_from_bytes(None, &record1).unwrap();
+        let handle2 = manager.add_from_bytes(None, &record2).unwrap();
+        let handle3 = manager.add_from_bytes(None, &record3).unwrap();
+
+        assert_eq!(handle1, 1);
+        assert_eq!(handle2, 2);
+        assert_eq!(handle3, 3);
+    }
+
+    #[test]
+    fn test_add_record_with_producer_handle() {
+        let manager = SmbiosManager::new(3, 9);
+        let record: [u8; 6] = [1, 4, 0, 0, 0, 0];
+        let fake_handle = 0x1234 as *mut core::ffi::c_void;
+        let _handle = manager.add_from_bytes(Some(fake_handle), &record).unwrap();
+
+        let mut search = SMBIOS_HANDLE_PI_RESERVED;
+        let (_, producer) = manager.get_next(&mut search, None).unwrap();
+        assert_eq!(producer, Some(fake_handle));
+    }
+
+    #[test]
+    fn test_add_empty_record_fails() {
+        let manager = SmbiosManager::new(3, 9);
+        let empty: [u8; 0] = [];
+        let result = manager.add_from_bytes(None, &empty);
+        assert_eq!(result, Err(SmbiosError::BufferTooSmall));
+    }
+
+    #[test]
+    fn test_add_undersized_record_fails() {
+        let manager = SmbiosManager::new(3, 9);
+        let tiny: [u8; 3] = [1, 4, 0];
+        let result = manager.add_from_bytes(None, &tiny);
+        assert_eq!(result, Err(SmbiosError::BufferTooSmall));
+    }
+
+    #[test]
+    fn test_add_record_missing_string_pool_fails() {
+        let manager = SmbiosManager::new(3, 9);
+        let no_strings: [u8; 4] = [1, 4, 0, 0];
+        let result = manager.add_from_bytes(None, &no_strings);
+        assert_eq!(result, Err(SmbiosError::BufferTooSmall));
+    }
+
+    #[test]
+    fn test_add_record_single_null_terminator_fails() {
+        let manager = SmbiosManager::new(3, 9);
+        let single_null: [u8; 5] = [1, 4, 0, 0, 0];
+        let result = manager.add_from_bytes(None, &single_null);
+        assert_eq!(result, Err(SmbiosError::BufferTooSmall));
+    }
+
+    #[test]
+    fn test_add_record_invalid_length_field() {
+        let manager = SmbiosManager::new(3, 9);
+        let invalid_length: [u8; 6] = [1, 10, 0, 0, 0, 0];
+        let result = manager.add_from_bytes(None, &invalid_length);
+        assert_eq!(result, Err(SmbiosError::BufferTooSmall));
+    }
+
+    #[test]
+    fn test_add_record_with_string_too_long() {
+        let manager = SmbiosManager::new(3, 9);
+        let mut record = vec![1, 4, 0, 0];
+        let long_string = vec![b'A'; SMBIOS_STRING_MAX_LENGTH + 1];
+        record.extend_from_slice(&long_string);
+        record.push(0);
+        record.push(0);
+
+        let result = manager.add_from_bytes(None, &record);
+        assert_eq!(result, Err(SmbiosError::StringTooLong));
+    }
+
+    #[test]
+    fn test_add_record_with_consecutive_nulls_in_middle() {
+        let manager = SmbiosManager::new(3, 9);
+        let bad_pool: [u8; 10] = [1, 4, 0, 0, b'A', 0, 0, b'B', 0, 0];
+        let result = manager.add_from_bytes(None, &bad_pool);
+        assert_eq!(result, Err(SmbiosError::InvalidParameter));
+    }
+
+    #[test]
+    fn test_get_next_empty_manager() {
+        let manager = SmbiosManager::new(3, 9);
+        let mut search = SMBIOS_HANDLE_PI_RESERVED;
+        let result = manager.get_next(&mut search, None);
+        assert!(result.is_err());
+        assert!(matches!(result, Err(SmbiosError::HandleNotFound)));
+    }
+
+    #[test]
+    fn test_get_next_single_record() {
+        let manager = SmbiosManager::new(3, 9);
+        let record: [u8; 6] = [1, 4, 0, 0, 0, 0];
+        let handle = manager.add_from_bytes(None, &record).unwrap();
+
+        let mut search = SMBIOS_HANDLE_PI_RESERVED;
+        let (header, _) = manager.get_next(&mut search, None).unwrap();
+        let h = header.handle;
+        assert_eq!(h, handle);
+        assert_eq!(header.record_type, 1);
+
+        let result = manager.get_next(&mut search, None);
+        assert!(result.is_err());
+        assert!(matches!(result, Err(SmbiosError::HandleNotFound)));
+        assert_eq!(search, SMBIOS_HANDLE_PI_RESERVED);
+    }
+
+    #[test]
+    fn test_get_next_multiple_records() {
+        let manager = SmbiosManager::new(3, 9);
+        let record1: [u8; 6] = [1, 4, 0, 0, 0, 0];
+        let record2: [u8; 6] = [2, 4, 0, 0, 0, 0];
+        let record3: [u8; 6] = [3, 4, 0, 0, 0, 0];
+
+        manager.add_from_bytes(None, &record1).unwrap();
+        manager.add_from_bytes(None, &record2).unwrap();
+        manager.add_from_bytes(None, &record3).unwrap();
+
+        let mut search = SMBIOS_HANDLE_PI_RESERVED;
+
+        let (header1, _) = manager.get_next(&mut search, None).unwrap();
+        assert_eq!(header1.record_type, 1);
+
+        let (header2, _) = manager.get_next(&mut search, None).unwrap();
+        assert_eq!(header2.record_type, 2);
+
+        let (header3, _) = manager.get_next(&mut search, None).unwrap();
+        assert_eq!(header3.record_type, 3);
+
+        let result = manager.get_next(&mut search, None);
+        assert!(result.is_err());
+        assert!(matches!(result, Err(SmbiosError::HandleNotFound)));
+    }
+
+    #[test]
+    fn test_get_next_filtered_by_type() {
+        let manager = SmbiosManager::new(3, 9);
+        let record1: [u8; 6] = [1, 4, 0, 0, 0, 0];
+        let record2: [u8; 6] = [2, 4, 0, 0, 0, 0];
+        let record3: [u8; 6] = [1, 4, 0, 0, 0, 0];
+        let record4: [u8; 6] = [3, 4, 0, 0, 0, 0];
+
+        manager.add_from_bytes(None, &record1).unwrap();
+        manager.add_from_bytes(None, &record2).unwrap();
+        manager.add_from_bytes(None, &record3).unwrap();
+        manager.add_from_bytes(None, &record4).unwrap();
+
+        let mut search = SMBIOS_HANDLE_PI_RESERVED;
+
+        let (header1, _) = manager.get_next(&mut search, Some(1)).unwrap();
+        assert_eq!(header1.record_type, 1);
+        let h1 = header1.handle;
+        assert_eq!(h1, 1);
+
+        let (header2, _) = manager.get_next(&mut search, Some(1)).unwrap();
+        assert_eq!(header2.record_type, 1);
+        let h2 = header2.handle;
+        assert_eq!(h2, 3);
+
+        let result = manager.get_next(&mut search, Some(1));
+        assert!(result.is_err());
+        assert!(matches!(result, Err(SmbiosError::HandleNotFound)));
+    }
+
+    #[test]
+    fn test_get_next_with_nonexistent_type() {
+        let manager = SmbiosManager::new(3, 9);
+        let record: [u8; 6] = [1, 4, 0, 0, 0, 0];
+        manager.add_from_bytes(None, &record).unwrap();
+
+        let mut search = SMBIOS_HANDLE_PI_RESERVED;
+        let result = manager.get_next(&mut search, Some(99));
+        assert!(result.is_err());
+        assert!(matches!(result, Err(SmbiosError::HandleNotFound)));
+    }
+
+    #[test]
+    fn test_remove_single_record() {
+        let manager = SmbiosManager::new(3, 9);
+        let record: [u8; 6] = [1, 4, 0, 0, 0, 0];
+        let handle = manager.add_from_bytes(None, &record).unwrap();
+
+        let result = manager.remove(handle);
+        assert!(result.is_ok());
+
+        let mut search = SMBIOS_HANDLE_PI_RESERVED;
+        let result = manager.get_next(&mut search, None);
+        assert!(result.is_err());
+        assert!(matches!(result, Err(SmbiosError::HandleNotFound)));
+    }
+
+    #[test]
+    fn test_remove_nonexistent_handle() {
+        let manager = SmbiosManager::new(3, 9);
+        let result = manager.remove(999);
+        assert_eq!(result, Err(SmbiosError::HandleNotFound));
+    }
+
+    #[test]
+    fn test_remove_from_multiple_records() {
+        let manager = SmbiosManager::new(3, 9);
+        let record1: [u8; 6] = [1, 4, 0, 0, 0, 0];
+        let record2: [u8; 6] = [2, 4, 0, 0, 0, 0];
+        let record3: [u8; 6] = [3, 4, 0, 0, 0, 0];
+
+        let handle1 = manager.add_from_bytes(None, &record1).unwrap();
+        let handle2 = manager.add_from_bytes(None, &record2).unwrap();
+        let handle3 = manager.add_from_bytes(None, &record3).unwrap();
+
+        manager.remove(handle2).unwrap();
+
+        let mut search = SMBIOS_HANDLE_PI_RESERVED;
+        let (header1, _) = manager.get_next(&mut search, None).unwrap();
+        let h1 = header1.handle;
+        assert_eq!(h1, handle1);
+
+        let (header3, _) = manager.get_next(&mut search, None).unwrap();
+        let h3 = header3.handle;
+        assert_eq!(h3, handle3);
+
+        let result = manager.get_next(&mut search, None);
+        assert!(result.is_err());
+        assert!(matches!(result, Err(SmbiosError::HandleNotFound)));
+    }
+
+    #[test]
+    fn test_update_string_basic() {
+        let manager = SmbiosManager::new(3, 9);
+        let record = [1, 4, 0, 0, b'O', b'l', b'd', 0, 0];
+        let handle = manager.add_from_bytes(None, &record).unwrap();
+
+        let result = manager.update_string(handle, 1, "New");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_update_string_multiple_strings() {
+        let manager = SmbiosManager::new(3, 9);
+        let record = [
+            1, 4, 0, 0, b'F', b'i', b'r', b's', b't', 0, b'S', b'e', b'c', b'o', b'n', b'd', 0, b'T', b'h', b'i', b'r',
+            b'd', 0, 0,
+        ];
+        let handle = manager.add_from_bytes(None, &record).unwrap();
+
+        assert!(manager.update_string(handle, 2, "Updated").is_ok());
+        assert!(manager.update_string(handle, 1, "NewFirst").is_ok());
+        assert!(manager.update_string(handle, 3, "NewThird").is_ok());
+    }
+
+    #[test]
+    fn test_update_string_invalid_handle() {
+        let manager = SmbiosManager::new(3, 9);
+        let result = manager.update_string(999, 1, "Test");
+        assert_eq!(result, Err(SmbiosError::HandleNotFound));
+    }
+
+    #[test]
+    fn test_update_string_zero_index() {
+        let manager = SmbiosManager::new(3, 9);
+        let record = [1, 4, 0, 0, b'T', b'e', b's', b't', 0, 0];
+        let handle = manager.add_from_bytes(None, &record).unwrap();
+
+        let result = manager.update_string(handle, 0, "Invalid");
+        assert_eq!(result, Err(SmbiosError::InvalidHandle));
+    }
+
+    #[test]
+    fn test_update_string_out_of_range() {
+        let manager = SmbiosManager::new(3, 9);
+        let record = [1, 4, 0, 0, b'O', b'n', b'l', b'y', 0, 0];
+        let handle = manager.add_from_bytes(None, &record).unwrap();
+
+        let result = manager.update_string(handle, 2, "Invalid");
+        assert_eq!(result, Err(SmbiosError::InvalidHandle));
+    }
+
+    #[test]
+    fn test_update_string_too_long() {
+        let manager = SmbiosManager::new(3, 9);
+        let record = [1, 4, 0, 0, b'S', b'h', b'o', b'r', b't', 0, 0];
+        let handle = manager.add_from_bytes(None, &record).unwrap();
+
+        let long_string = "A".repeat(SMBIOS_STRING_MAX_LENGTH + 1);
+        let result = manager.update_string(handle, 1, &long_string);
+        assert_eq!(result, Err(SmbiosError::StringTooLong));
+    }
+
+    #[test]
+    fn test_update_string_with_null_character() {
+        let manager = SmbiosManager::new(3, 9);
+        let record = [1, 4, 0, 0, b'T', b'e', b's', b't', 0, 0];
+        let handle = manager.add_from_bytes(None, &record).unwrap();
+
+        let bad_string = "Has\0Null";
+        let result = manager.update_string(handle, 1, bad_string);
+        assert_eq!(result, Err(SmbiosError::InvalidParameter));
+    }
+
+    #[test]
+    fn test_update_string_at_max_length() {
+        let manager = SmbiosManager::new(3, 9);
+        let record = [1, 4, 0, 0, b'S', b'h', b'o', b'r', b't', 0, 0];
+        let handle = manager.add_from_bytes(None, &record).unwrap();
+
+        let max_string = "X".repeat(SMBIOS_STRING_MAX_LENGTH);
+        let result = manager.update_string(handle, 1, &max_string);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_type0_with_empty_strings() {
+        let manager = SmbiosManager::new(3, 9);
+
+        let type0 = Type0PlatformFirmwareInformation {
+            header: SmbiosTableHeader::new(0, 0, SMBIOS_HANDLE_PI_RESERVED),
+            vendor: 0,
+            firmware_version: 0,
+            bios_starting_address_segment: 0xE000,
+            firmware_release_date: 0,
+            firmware_rom_size: 0x0F,
+            characteristics: 0x08,
+            characteristics_ext1: 0x01,
+            characteristics_ext2: 0x00,
+            system_bios_major_release: 1,
+            system_bios_minor_release: 0,
+            embedded_controller_major_release: 0xFF,
+            embedded_controller_minor_release: 0xFF,
+            extended_bios_rom_size: 0x0000,
+            string_pool: vec![],
+        };
+
+        let bytes = type0.to_bytes();
+        let handle = manager.add_from_bytes(None, &bytes).unwrap();
+        assert_eq!(handle, 1);
+    }
+
+    #[test]
+    fn test_smbios_table_header_creation() {
+        let header = SmbiosTableHeader::new(1, 10, 5);
+        assert_eq!(header.record_type, 1);
+        assert_eq!(header.length, 10);
+        let h = header.handle;
+        assert_eq!(h, 5);
+    }
+
+    #[test]
+    fn test_smbios_table_header_as_bytes() {
+        let header = SmbiosTableHeader::new(1, 10, 5);
+        let handle = header.handle;
+        assert_eq!(handle, 5);
+        let bytes = header.as_bytes();
+        assert_eq!(bytes.len(), 4);
+        assert_eq!(bytes[0], 1);
+        assert_eq!(bytes[1], 10);
+    }
+
+    #[test]
+    fn test_add_many_records() {
+        let manager = SmbiosManager::new(3, 9);
+        let mut handles = Vec::new();
+
+        for i in 0..100 {
+            let record_type = (i % 256) as u8;
+            let record: [u8; 6] = [record_type, 4, 0, 0, 0, 0];
+            let handle = manager.add_from_bytes(None, &record).unwrap();
+            handles.push(handle);
+        }
+
+        for i in 0..100 {
+            for j in (i + 1)..100 {
+                assert_ne!(handles[i], handles[j]);
+            }
+        }
+
+        let mut count = 0;
+        let mut search = SMBIOS_HANDLE_PI_RESERVED;
+        while manager.get_next(&mut search, None).is_ok() {
+            count += 1;
+        }
+        assert_eq!(count, 100);
+    }
+
+    #[test]
+    fn test_string_at_exactly_max_length() {
+        let manager = SmbiosManager::new(3, 9);
+        let mut record = vec![1, 4, 0, 0];
+        let max_string = vec![b'A'; SMBIOS_STRING_MAX_LENGTH];
+        record.extend_from_slice(&max_string);
+        record.push(0);
+        record.push(0);
+
+        let result = manager.add_from_bytes(None, &record);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_alternating_add_remove() {
+        let manager = SmbiosManager::new(3, 9);
+
+        for _ in 0..10 {
+            let record: [u8; 6] = [1, 4, 0, 0, 0, 0];
+            let handle = manager.add_from_bytes(None, &record).unwrap();
+            manager.remove(handle).unwrap();
+        }
+
+        let mut search = SMBIOS_HANDLE_PI_RESERVED;
+        let result = manager.get_next(&mut search, None);
+        assert!(result.is_err());
+        assert!(matches!(result, Err(SmbiosError::HandleNotFound)));
+    }
+
+    #[test]
+    fn test_record_with_varied_structured_data() {
+        let manager = SmbiosManager::new(3, 9);
+
+        let mut record = vec![1, 10, 0, 0, 1, 2, 3, 4, 5, 6];
+        record.extend_from_slice(b"String1\0String2\0\0");
+
+        let handle = manager.add_from_bytes(None, &record).unwrap();
+        assert_eq!(handle, 1);
+    }
+
+    #[test]
+    fn test_smbios_error_types() {
+        let errors = vec![
+            SmbiosError::InvalidParameter,
+            SmbiosError::OutOfResources,
+            SmbiosError::HandleAlreadyInUse,
+            SmbiosError::HandleNotFound,
+            SmbiosError::UnsupportedRecordType,
+            SmbiosError::InvalidHandle,
+            SmbiosError::StringTooLong,
+            SmbiosError::BufferTooSmall,
+        ];
+
+        assert_eq!(SmbiosError::InvalidParameter, SmbiosError::InvalidParameter);
+        assert_ne!(SmbiosError::InvalidParameter, SmbiosError::OutOfResources);
+
+        for error in errors {
+            let cloned = error.clone();
+            assert_eq!(error, cloned);
+        }
+    }
+
+    #[test]
+    fn test_enumeration_restart() {
+        let manager = SmbiosManager::new(3, 9);
+        let record1: [u8; 6] = [1, 4, 0, 0, 0, 0];
+        let record2: [u8; 6] = [2, 4, 0, 0, 0, 0];
+
+        manager.add_from_bytes(None, &record1).unwrap();
+        manager.add_from_bytes(None, &record2).unwrap();
+
+        let mut search = SMBIOS_HANDLE_PI_RESERVED;
+        manager.get_next(&mut search, None).unwrap();
+        manager.get_next(&mut search, None).unwrap();
+
+        search = SMBIOS_HANDLE_PI_RESERVED;
+        let (header, _) = manager.get_next(&mut search, None).unwrap();
+        assert_eq!(header.record_type, 1);
+    }
+
+    #[test]
+    fn test_enumeration_from_middle() {
+        let manager = SmbiosManager::new(3, 9);
+        let record1: [u8; 6] = [1, 4, 0, 0, 0, 0];
+        let record2: [u8; 6] = [2, 4, 0, 0, 0, 0];
+        let record3: [u8; 6] = [3, 4, 0, 0, 0, 0];
+
+        manager.add_from_bytes(None, &record1).unwrap();
+        manager.add_from_bytes(None, &record2).unwrap();
+        manager.add_from_bytes(None, &record3).unwrap();
+
+        let mut search = SMBIOS_HANDLE_PI_RESERVED;
+        manager.get_next(&mut search, None).unwrap();
+
+        let (header, _) = manager.get_next(&mut search, None).unwrap();
+        assert_eq!(header.record_type, 2);
+    }
+
+    #[test]
+    fn test_record_type_constants() {
+        assert_eq!(Type0PlatformFirmwareInformation::RECORD_TYPE, 0);
+    }
+
+    #[test]
+    fn test_multiple_managers_independent() {
+        let manager1 = SmbiosManager::new(3, 8);
+        let manager2 = SmbiosManager::new(3, 9);
+
+        let record: [u8; 6] = [1, 4, 0, 0, 0, 0];
+        let handle1 = manager1.add_from_bytes(None, &record).unwrap();
+        let handle2 = manager2.add_from_bytes(None, &record).unwrap();
+
+        assert_eq!(handle1, 1);
+        assert_eq!(handle2, 1);
+
+        let (maj1, min1) = manager1.version();
+        let (maj2, min2) = manager2.version();
+        assert_eq!(maj1, 3);
+        assert_eq!(min1, 8);
+        assert_eq!(maj2, 3);
+        assert_eq!(min2, 9);
+    }
+
+    #[test]
+    fn test_handle_wrap_around_prevention() {
+        let manager = SmbiosManager::new(3, 9);
+
+        for _ in 0..50 {
+            let record: [u8; 6] = [1, 4, 0, 0, 0, 0];
+            let handle = manager.add_from_bytes(None, &record).unwrap();
+            assert_ne!(handle, 0);
+            assert_ne!(handle, 0xFFFE);
+            assert_ne!(handle, 0xFFFF);
+        }
+    }
 }
