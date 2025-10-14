@@ -16,6 +16,7 @@ use alloc::vec::Vec;
 use core::cell::RefCell;
 use core::ffi::{c_char, c_void};
 use core::sync::atomic::{AtomicPtr, Ordering};
+use patina::boot_services::BootServices;
 use patina::uefi_protocol::ProtocolInterface;
 use r_efi::efi;
 use r_efi::efi::Handle;

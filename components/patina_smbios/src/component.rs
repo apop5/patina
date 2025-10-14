@@ -10,6 +10,7 @@
 //!
 
 extern crate alloc;
+use core::cell::RefCell;
 use crate::smbios_derive::{
     SmbiosError, SmbiosHandle, SmbiosManager, SmbiosRecords, SmbiosTableHeader, SmbiosType, install_smbios_protocol,
 };
