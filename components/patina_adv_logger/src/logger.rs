@@ -12,8 +12,7 @@
 use crate::memory_log::{self, AdvancedLog, LogEntry};
 use core::marker::Send;
 use log::Level;
-use mu_rust_helpers::perf_timer::{Arch, ArchFunctionality};
-use patina::{log::Format, serial::SerialIO};
+use patina::{log::Format, perf_timer::component::PerfTimer, serial::SerialIO};
 use r_efi::efi;
 use spin::Once;
 
@@ -60,7 +59,7 @@ where
         let mut hw_write = true;
         if let Some(memory_log) = self.memory_log.get() {
             hw_write = memory_log.hardware_write_enabled(error_level);
-            let timestamp = Arch::cpu_count();
+            let timestamp = PerfTimer::cpu_count();
             let _ = memory_log.add_log_entry(LogEntry {
                 phase: memory_log::ADVANCED_LOGGER_PHASE_DXE,
                 level: error_level,
@@ -83,7 +82,7 @@ where
 
             // The frequency may not be initialized, if not do so now.
             if memory_log.get_frequency() == 0 {
-                let frequency = Arch::perf_frequency();
+                let frequency = PerfTimer::perf_frequency();
                 memory_log.set_frequency(frequency);
             }
 

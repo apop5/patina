@@ -523,6 +523,7 @@ impl Core<Alloc> {
         self.insert_component(0, decompress::DecompressProtocolInstaller::default().into_component());
         self.insert_component(0, systemtables::SystemTableChecksumInstaller::default().into_component());
         self.insert_component(0, cpu_arch_protocol::CpuArchProtocolInstaller::default().into_component());
+        self.insert_component(0, patina::perf_timer::component::PerfTimer::default().into_component());
         #[cfg(all(target_os = "uefi", target_arch = "aarch64"))]
         self.insert_component(0, hw_interrupt_protocol::HwInterruptProtocolInstaller::default().into_component());
     }

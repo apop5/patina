@@ -20,6 +20,7 @@ use patina::{
     component::{IntoComponent, hob::Hob, params::Config},
     error::EfiError,
     guids::{EVENT_GROUP_END_OF_DXE, PERFORMANCE_PROTOCOL},
+    perf_timer::component::PerfTimer,
     performance::{
         _smm::MmCommRegion,
         globals::{get_static_state, set_load_image_count, set_perf_measurement_mask, set_static_state},
@@ -156,9 +157,9 @@ impl Performance {
             boot_services.as_ref().install_configuration_table(
                 &PERFORMANCE_PROTOCOL,
                 Box::new(PerformanceProperty::new(
-                    Arch::perf_frequency(),
-                    Arch::cpu_count_start(),
-                    Arch::cpu_count_end(),
+                    PerfTimer::perf_frequency(),
+                    PerfTimer::cpu_count_start(),
+                    PerfTimer::cpu_count_end(),
                 )),
             )?
         };

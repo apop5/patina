@@ -22,6 +22,7 @@ use crate::{
     boot_services::BootServices,
     error::EfiError,
     guids::EDKII_FPDT_EXTENDED_FIRMWARE_PERFORMANCE,
+    perf_timer::component::PerfTimer,
     performance::{
         self,
         _smm::{CommunicateProtocol, MmCommRegion, SmmGetRecordDataByOffset, SmmGetRecordSize},
@@ -286,11 +287,11 @@ where
     B: BootServices,
     F: FirmwareBasicBootPerfTable,
 {
-    let cpu_count = Arch::cpu_count();
+    let cpu_count = PerfTimer::cpu_count();
     let timestamp = match ticker {
-        0 => (cpu_count as f64 / Arch::perf_frequency() as f64 * 1_000_000_000_f64) as u64,
+        0 => (cpu_count as f64 / PerfTimer::perf_frequency() as f64 * 1_000_000_000_f64) as u64,
         1 => 0,
-        ticker => (ticker as f64 / Arch::perf_frequency() as f64 * 1_000_000_000_f64) as u64,
+        ticker => (ticker as f64 / PerfTimer::perf_frequency() as f64 * 1_000_000_000_f64) as u64,
     };
 
     let Ok(known_perf_id) = KnownPerfId::try_from(perf_id) else {

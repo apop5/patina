@@ -37,6 +37,7 @@ num-traits = { workspace = true }
 fallible-streaming-iterator = { workspace = true }
 linkme = { workspace = true }
 scroll = { workspace = true }
+spin = { workspace = true }
 
 [target.'cfg(target_arch="x86_64")'.dependencies]
 x86_64 = { workspace = true, features = ["instructions"] }

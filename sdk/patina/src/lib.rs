@@ -41,6 +41,7 @@ pub mod efi_types;
 pub mod error;
 pub mod guids;
 pub mod log;
+pub mod perf_timer;
 pub mod performance;
 pub mod runtime_services;
 pub mod serial;
