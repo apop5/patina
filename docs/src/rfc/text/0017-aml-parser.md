@@ -14,14 +14,14 @@ more ergnonic interface for parsing and modifying AML bytecode.
 
 ## Technology Background
 
-AML bytecode is encoded mainly in the body of the DSDT and SSDT. 
+AML bytecode is encoded mainly in the body of the DSDT and SSDT.
 More details about the layouts of these tables can be found in the [ACPI Specification, Vol. 5](https://uefi.org/specs/ACPI/6.5/05_ACPI_Software_Programming_Model.html?highlight=ssdt).
 The specifics of AML grammar can be found in the [ACPI Specification, Vol. 20](https://uefi.org/specs/ACPI/6.5/20_AML_Specification.html).
 
 Like the `AcpiProvider` service, this AML parser supports only ACPI 2.0+.
 
 This RFC discusses only the UEFI spec-defined AML handling behavior.
-**It does not attempt to implement functionality for interpreting or executing the AML namespace in the OS domain, 
+**It does not attempt to implement functionality for interpreting or executing the AML namespace in the OS domain,
 which becomes relevant only after UEFI boot has completed.**
 
 ### Protocol
@@ -37,12 +37,12 @@ Secondarily, implement the rest of the ACPI SDT protocol relating to AML functio
 ## Requirements
 
 1. Redesign the existing C firmware AML implementation into a a safe, easy-to-use Rust service.
-2. Implement firmware-side AML parsing: traversal and patching of AML bytecode as opcodes and operands. 
+2. Implement firmware-side AML parsing: traversal and patching of AML bytecode as opcodes and operands.
 3. Use the Rust service (*1.*) to implement the C ACPI SDT protocol.
 
 ## Prior Art
 
-The [ACPI SDT protocol](https://uefi.org/specs/PI/1.8/V5_ACPI_System_Desc_Table_Protocol.html) 
+The [ACPI SDT protocol](https://uefi.org/specs/PI/1.8/V5_ACPI_System_Desc_Table_Protocol.html)
 is a spec-defined UEFI PI protocol for retrieving and parsing ACPI tables.
 There are many existing implementations, such as [edk2's AcpiTableDxe](https://github.com/tianocore/edk2/blob/edb5331f787519d1abbcf05563c7997453be2ef5/MdeModulePkg/Universal/Acpi/AcpiTableDxe/AmlChild.c#L4).
 
@@ -52,32 +52,32 @@ there is significant overlap in the low-level parsing code between the firmware 
 
 ## Alternatives + Open Questions
 
-The [Rust `acpi` crate](https://github.com/rust-osdev/acpi) 
-already provides some functionality for interpreting AML bytecode. 
+The [Rust `acpi` crate](https://github.com/rust-osdev/acpi)
+already provides some functionality for interpreting AML bytecode.
 However, it is incomplete and provides limited public interfaces;
-it also does not deal with firmware-side protocols or parsing. 
+it also does not deal with firmware-side protocols or parsing.
 
 This leaves two main paths for the Patina AML implmentation:
 
-1. Design and implement a new Rust AML service from the ground up, 
+1. Design and implement a new Rust AML service from the ground up,
 without explicitly utilizing the existing `acpi` crate.
 (`acpi` has MIT license, so it may be possible to borrow some snippets/implementations with proper attribution.)
    - Pros: Interfaces and implementations can be tailored to Patina needs.
    - Cons: Repeated work.
-2. Design and implement the Rust AML service 
+2. Design and implement the Rust AML service
 while using the `acpi` crate as a dependency and parsing through its public interfaces.
 (This may involve contributing to the `acpi` crate to improve its public interfaces.)
-    - Pros: Less repeated code, especially for parsing. 
+    - Pros: Less repeated code, especially for parsing.
     - Cons: `acpi` has limited public interfaces, which may constrain the development of the Rust ACPI service.
-It primarily focuses on looking up and executing AML in the application space, 
+It primarily focuses on looking up and executing AML in the application space,
 with less support for actually walking through and modifying the firmware-side AML object tree.
 
-There is ongoing conversation with the owner of the `acpi` crate about 
+There is ongoing conversation with the owner of the `acpi` crate about
 borrowing certain implementations and modifying the public interfaces
 to be more friendly to the Patina ACPI implementation.
 This conversation can be tracked through a [Github issue in the `acpi` crate](https://github.com/rust-osdev/acpi/issues/260).
 
-## Rust Code 
+## Rust Code
 
 ### AML Handles
 
@@ -107,13 +107,13 @@ impl AmlSdtHandleInternal {
 pub type AmlHandle = AmlSdtHandleInternal;
 ```
 
-The `size` of an `AmlSdtHandleInternal` refers to its full size, including any children (`TermList`). 
+The `size` of an `AmlSdtHandleInternal` refers to its full size, including any children (`TermList`).
 
 The `offset` refers to its offset with the AML stream of the table.
-Offset 0 is the start of the AML stream, and the highest offset is at the end of `table_length`. 
+Offset 0 is the start of the AML stream, and the highest offset is at the end of `table_length`.
 
 `modified` ensures the corresponding table (which can be retrieved through `table_key`) has an updated checksum
-if the contents are modified by `set_option`. 
+if the contents are modified by `set_option`.
 
 Each handle stores the `parent_end` of its parent node, which is the parent's `size` + `offset` (useful for retrieving siblings).
 
@@ -209,14 +209,14 @@ impl AmlParser for StandardAmlParser { ... }
 
 #### `open_table`
 
-Finds the table (usually DSDT or SSDT) referenced by `table_key` and returns a handle for further AML operations. 
+Finds the table (usually DSDT or SSDT) referenced by `table_key` and returns a handle for further AML operations.
 Internally this also parses the bytes of the referenced node at the start of the table's AML stream
-and sets up its fields as an `AmlSdtHandleInternal`, then adds it to `active_handles`. 
+and sets up its fields as an `AmlSdtHandleInternal`, then adds it to `active_handles`.
 
 #### `close_sdt`
 
-Finds the table corresponding to the node's `table_key` field and if modified, updates its checksum. 
-Removes the node from `active_handles`. 
+Finds the table corresponding to the node's `table_key` field and if modified, updates its checksum.
+Removes the node from `active_handles`.
 
 #### `iter_options`
 
@@ -230,7 +230,7 @@ Sets the operand at `idx` to `new_val` and sets `modified` = `true` for the hand
 
 First check if `HAS_CHILD_OBJ` is `true` in `attributes` (if there are no children, this function returns None.
 This is not to be confused with the outer `Result<Option<AmlHandle>, AmlError>`,
-which considers `None` / no children as a success case.) 
+which considers `None` / no children as a success case.)
 
 AML objects are encoded in memory as such:
 
@@ -245,16 +245,16 @@ The child derives `table_key` from its parent handle, and computes `parent_end` 
 
 #### `get_sibling`
 
-As stated above, `get_sibling` and `get_child` together provide a full set of traversal operations. 
+As stated above, `get_sibling` and `get_child` together provide a full set of traversal operations.
 
-In AML, children are consecutive, so the next sibling of a node is at `offset + size`. 
+In AML, children are consecutive, so the next sibling of a node is at `offset + size`.
 
-There are no more siblings when `offset + size` >= `parent_end`. 
+There are no more siblings when `offset + size` >= `parent_end`.
 
-The new handle derives `parent_end` from the sibling on which `get_sibling` is called. 
+The new handle derives `parent_end` from the sibling on which `get_sibling` is called.
 The only exception is the "root" node -- the node on which `open_table` is initially called,
 since this node has no siblings and no parent from which to derive `parent_end`.
-As such, the `parent_end` of this table is simply at the end of the table, which is `table_length - ACPI_HEADER_SIZE`. 
+As such, the `parent_end` of this table is simply at the end of the table, which is `table_length - ACPI_HEADER_SIZE`.
 
 ## Guide-Level Explanation
 
@@ -262,7 +262,7 @@ The general flow for using the `AmlParser` service will be:
 
 1. Set up and install necessary tables with the `AcpiProvider` service.
 2. Open a DSDT or SSDT with `open_table`.
-3. Traverse as necessary through `get_child`, `get_sibling`, and `get_option`. 
+3. Traverse as necessary through `get_child`, `get_sibling`, and `get_option`.
 4. Make necessary modifications through `set_option`.
 5. During traversal, close nodes which no longer need to be accessed through `close_handle`.
 6. When traversal / patching is complete, `close_handle` on the root node (originally opened with `open_table`).
@@ -270,5 +270,5 @@ The general flow for using the `AmlParser` service will be:
 ## Future Extensions
 
 Eventually, the hope is to provide not only firmware-side implementation of the ACPI SDT protocol,
-but also application-side AML interpretation and execution capabilities through an independent `patina-acpi` crate. 
+but also application-side AML interpretation and execution capabilities through an independent `patina-acpi` crate.
 This may be done with or without borrowing functionality from the existing Rust `acpi` crate.
