@@ -10,7 +10,7 @@ TODO
 
 This RFC is an extension of the [ACPI service](0005-acpi.md).
 Similar to the ACPI service, this Rust-based AML service will provide a safer and
-more ergnonic interface for parsing and interpreting AML bytecode.
+more ergnonic interface for parsing and modifying AML bytecode.
 
 ## Technology Background
 
@@ -18,17 +18,27 @@ AML bytecode is encoded mainly in the body of the DSDT and SSDT.
 More details about the layouts of these tables can be found in the [ACPI Specification, Vol. 5](https://uefi.org/specs/ACPI/6.5/05_ACPI_Software_Programming_Model.html?highlight=ssdt).
 The specifics of AML grammar can be found in the [ACPI Specification, Vol. 20](https://uefi.org/specs/ACPI/6.5/20_AML_Specification.html).
 
+Like the `AcpiProvider` service, this AML parser supports only ACPI 2.0+.
+
+This RFC discusses only the UEFI spec-defined AML handling behavior.
+**It does not attempt to implement functionality for interpreting or executing the AML namespace in the OS domain, 
+which becomes relevant only after UEFI boot has completed.**
+
+### Protocol
+
+The Rust AML implementation derives its format from the [ACPI SDT protocol](https://uefi.org/specs/PI/1.8/V5_ACPI_System_Desc_Table_Protocol.html),
+which includes basic functionality for parsing and patching AML bytecode after ACPI tables are installed.  
+
 ## Goals
 
-Provide a comprehensive Rust implementation for AML parsing, interpretation, and execution. 
+Provide a comprehensive Rust implementation for AML parsing and patching on the firmware DXE side.
+Secondarily, implement the rest of the ACPI SDT protocol relating to AML functionality.  
 
 ## Requirements
 
 1. Redesign the existing C firmware AML implementation into a a safe, easy-to-use Rust service.
-2. Implement firmware-side AML parsing: conduct static boot-time validation and expose namespace structures. 
-3. Implement application-side AML interpretation and execution: 
-dynamically interpret AML opcodes, resolve runtime options, and execute methods on demand.    
-1. Use the Rust service (*1.*) to implement the C ACPI SDT protocol.
+2. Implement firmware-side AML parsing: traversal and patching of AML bytecode as opcodes and operands. 
+3. Use the Rust service (*1.*) to implement the C ACPI SDT protocol.
 
 ## Prior Art
 
@@ -37,6 +47,8 @@ is a spec-defined UEFI PI protocol for retrieving and parsing ACPI tables.
 There are many existing implementations, such as [edk2's AcpiTableDxe](https://github.com/tianocore/edk2/blob/edb5331f787519d1abbcf05563c7997453be2ef5/MdeModulePkg/Universal/Acpi/AcpiTableDxe/AmlChild.c#L4).
 
 An (incomplete) implementation for application-side interpretation of AML bytecode exists in the [Rust `acpi` crate](https://github.com/rust-osdev/acpi).
+While the intent of the `acpi` crate is to interpret and execute AML after boot,
+there is significant overlap in the low-level parsing code between the firmware and application side of AML functionality.
 
 ## Alternatives + Open Questions
 
@@ -253,4 +265,10 @@ The general flow for using the `AmlParser` service will be:
 3. Traverse as necessary through `get_child`, `get_sibling`, and `get_option`. 
 4. Make necessary modifications through `set_option`.
 5. During traversal, close nodes which no longer need to be accessed through `close_handle`.
-6. When traversal / patching is complete, `close_handle` on the root node (originally opened with `open_table`). 
+6. When traversal / patching is complete, `close_handle` on the root node (originally opened with `open_table`).
+
+## Future Extensions
+
+Eventually, the hope is to provide not only firmware-side implementation of the ACPI SDT protocol,
+but also application-side AML interpretation and execution capabilities through an independent `patina-acpi` crate. 
+This may be done with or without borrowing functionality from the existing Rust `acpi` crate.
