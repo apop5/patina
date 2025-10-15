@@ -23,6 +23,7 @@ The specifics of AML grammar can be found in the [ACPI Specification, Vol. 20](h
 Provide a comprehensive Rust implementation for AML parsing, interpretation, and execution. 
 
 ## Requirements
+
 1. Redesign the existing C firmware AML implementation into a a safe, easy-to-use Rust service.
 2. Implement firmware-side AML parsing: conduct static boot-time validation and expose namespace structures. 
 3. Implement application-side AML interpretation and execution: 
@@ -30,44 +31,146 @@ dynamically interpret AML opcodes, resolve runtime options, and execute methods 
 1. Use the Rust service (*1.*) to implement the C ACPI SDT protocol.
 
 ## Prior Art
-The [ACPI SDT protocol](https://uefi.org/specs/PI/1.8/V5_ACPI_System_Desc_Table_Protocol.html) is a spec-defined UEFI PI protocol for retrieving and parsing ACPI tables.
+
+The [ACPI SDT protocol](https://uefi.org/specs/PI/1.8/V5_ACPI_System_Desc_Table_Protocol.html) 
+is a spec-defined UEFI PI protocol for retrieving and parsing ACPI tables.
 There are many existing implementations, such as [edk2's AcpiTableDxe](https://github.com/tianocore/edk2/blob/edb5331f787519d1abbcf05563c7997453be2ef5/MdeModulePkg/Universal/Acpi/AcpiTableDxe/AmlChild.c#L4).
 
 An (incomplete) implementation for application-side interpretation of AML bytecode exists in the [Rust `acpi` crate](https://github.com/rust-osdev/acpi).
 
 ## Alternatives + Open Questions
 
-The [Rust `acpi` crate](https://github.com/rust-osdev/acpi) already provides some functionality for interpreting AML bytecode. However, it is incomplete and provides limited public interfaces; it also does not deal with firmware-side protocols or parsing. 
+The [Rust `acpi` crate](https://github.com/rust-osdev/acpi) 
+already provides some functionality for interpreting AML bytecode. 
+However, it is incomplete and provides limited public interfaces;
+it also does not deal with firmware-side protocols or parsing. 
 
 This leaves two main paths for the Patina AML implmentation:
-1. Design and implement a new Rust AML service from the ground up, without explicitly utilizing the existing `acpi` crate. (`acpi` has MIT license, so it may be possible to borrow some snippets/implementations with proper attribution.)
+
+1. Design and implement a new Rust AML service from the ground up, 
+without explicitly utilizing the existing `acpi` crate.
+(`acpi` has MIT license, so it may be possible to borrow some snippets/implementations with proper attribution.)
    - Pros: Interfaces and implementations can be tailored to Patina needs.
    - Cons: Repeated work.
-2. Design and implement the Rust AML service while using the `acpi` crate as a dependency and parsing through its public interfaces. (This may involve contributing to the `acpi` crate to improve its public interfaces.)
+2. Design and implement the Rust AML service 
+while using the `acpi` crate as a dependency and parsing through its public interfaces.
+(This may involve contributing to the `acpi` crate to improve its public interfaces.)
     - Pros: Less repeated code, especially for parsing. 
-    - Cons: `acpi` has limited public interfaces, which may constrain the development of the Rust ACPI service. It primarily focuses on looking up and executing AML in the application space, with less support for actually walking through and modifying the firmware-side AML object tree.
+    - Cons: `acpi` has limited public interfaces, which may constrain the development of the Rust ACPI service.
+It primarily focuses on looking up and executing AML in the application space, 
+with less support for actually walking through and modifying the firmware-side AML object tree.
 
-This RFC favors the former (1), as the `acpi` crate seems generally too constraining to be used as a direct dependency for the Rust AML service.
+There is ongoing conversation with the owner of the `acpi` crate about 
+borrowing certain implementations and modifying the public interfaces
+to be more friendly to the Patina ACPI implementation.
+This conversation can be tracked through a [Github issue in the `acpi` crate](https://github.com/rust-osdev/acpi/issues/260).
 
-## Rust Code Design
+## Rust Code 
+
+### AML Handles
+
+By spec definition, an AML handle is an opaque handle returned from opening a DSDT or SSDT,
+on which AML traversal and patching operations can be performed.
+
+Internally, the each `AmlHandle` object, aliased as `AmlSdtHandleInternal`,
+represents a cursor within an AML stream. Each handle can be conceptualized as a "node"
+in the AML object tree of parent-child-relationships.
+
+```rust
+pub(crate) struct AmlSdtHandleInternal {
+    table_key: TableKey,
+    offset: usize,
+    size: usize,
+    modified: bool,
+    byte_encoding: AmlByteEncoding,
+    parent_end: Option<usize>,
+}
+
+impl AmlSdtHandleInternal {
+    fn new(table_key: TableKey, offset: usize, size: usize) -> Self {
+        Self { table_key, offset, size, modified: false }
+    }
+}
+
+pub type AmlHandle = AmlSdtHandleInternal;
+```
+
+The `size` of an `AmlSdtHandleInternal` refers to its full size, including any children (`TermList`). 
+
+The `offset` refers to its offset with the AML stream of the table.
+Offset 0 is the start of the AML stream, and the highest offset is at the end of `table_length`. 
+
+`modified` ensures the corresponding table (which can be retrieved through `table_key`) has an updated checksum
+if the contents are modified by `set_option`. 
+
+Each handle stores the `parent_end` of its parent node, which is the parent's `size` + `offset` (useful for retrieving siblings).
+
+Each handle also stores its own byte encoding, specifying its own layout:
+
+```rust
+#[derive(PartialEq, Eq, Hash)]
+struct AmlByteEncoding {
+    opcode: AmlOpcode,
+    operands: Vec<AmlOperand>,
+    attributes: AmlOpAttributes,
+}
+
+bitflags! {
+    pub struct AmlOpAttributes: u32 {
+        /// If opcode has a pkg_length field.
+        const HAS_PKG_LENGTH  = 0x0000_0001;
+
+        /// If opcode has children.
+        const HAS_CHILD_OBJ   = 0x0000_0002;
+    }
+}
+
+/// Represents the possible opcodes. 
+pub enum AmlOpcode {
+    BaseOp(BaseOpcode),
+    ExtOp(ExtOpcode),
+}
+
+pub enum BaseOpcode {
+    ZerOp,
+    AliasOp,
+    ...
+}
+
+pub enum ExtOpcode {
+    MutexOp,
+    EventOp,
+    ...
+}
+
+pub enum AmlOperand {
+    Opcode(AmlOpcode),
+    Name(AmlNameString), // Represents a NameString (AML path). Not to be confused with a string literal 
+    ...
+}
+```
+
+### AML Trait Interface
 
 The `AmlParser` service generally derives from the ACPI SDT protocol, and allows for traversal of the AML object tree.
 
 ```rust
-pub(crate) trait AmlParser {
-  // Opens a table for traversal, loading its namespace structures. The table should be a DSDT or SSDT. 
+pub(crate) trait AmlParser {  
+  // Opens a table's AML stream for parsing. The table should be a DSDT or SSDT. 
   // The resulting handle is an opaque object on which further AML operations can be performed.
-  fn open_sdt(&self, table_key: TableKey) -> Result<AmlHandle, AmlError>;
+  // It points to the first (root) node in the AML stream.
+  unsafe fn open_table(&self, table_key: TableKey) -> Result<AmlHandle, AmlError>;
 
-  // Closes a table for traversal, and removes its namespace from access.
+  // Closes a handle for modification and traversal.
   // The handle will no longer be valid after it is closed.
-  fn close_sdt(&self, handle: AmlHandle) -> Result<(), AmlError>;
+  // Update the corresponding table's checksum if the handle is `modified`. 
+  fn close_handle(&self, handle: AmlHandle) -> Result<(), AmlError>;
 
   // Iterates over the options (operands) of an opened AML handle.
-  fn iter_options(&self, handle: AmlHandle) -> Result<Vec<AmlData>, AmlError>;
+  fn iter_options(&self, handle: AmlHandle) -> Result<Vec<AmlOperand>, AmlError>;
 
   // Sets the option (operand) at a particular index to the given value.
-  fn set_option(&self, handle: AmlHandle, AmlData) -> Result<(), AmlError>;
+  fn set_option(&self, handle: AmlHandle, idx: usize, new_val: AmlOperand) -> Result<(), AmlError>;
 
   // Returns the first child of an AML node. 
   fn get_child(&self, handle: AmlHandle) -> Result<Option<AmlHandle>, AmlError>;
@@ -80,51 +183,74 @@ pub(crate) trait AmlParser {
 }
 ```
 
-While the AML handles are opaque to the consumer, they contain private fields that are used internally in the `AmlParser` service.
+The canonical implementation will be provided by `StandardAmlParser`.
 
 ```rust
-pub(crate) struct AmlSdtHandleInternal {
-    table_key: TableKey,
-    offset: usize,
-    size: usize,
-    modified: bool,
+#[derive(IntoService)]
+#[service(dyn AmlParser)]
+struct StandardAmlParser {
+    actives_handles: HashSet<AmlHandle>,
 }
 
-impl AmlSdtHandleInternal {
-    fn new(table_key: TableKey, offset: usize, size: usize) -> Self {
-        Self { table_key, offset, size, modified: false }
-    }
-}
-
-pub type AmlHandle = AmlSdtHandleInternal;
-
-// Sentinel node for traversal. 
-const ROOT_NODE: AmlSdtHandleInternal =
-    AmlSdtHandleInternal { table_key: TableKey(0), offset: 0, size: 0, modified: false };
+impl AmlParser for StandardAmlParser { ... }
 ```
 
-By storing its own `size` (derived from the node's `pkg_length`) and `offset` (within the table's AML bytecode stream), each `AmlSdtHandleInternal` (representing an AML node) will allow for lazy parsing when a traversal function is called on it. 
+#### `open_table`
 
-`modified` ensures the corresponding table (which can be retrieved through `table_key`) has an updated checksum if the contents are modified between `open_sdt` and `close_sdt`. This primarily occurs through `set_option`. 
+Finds the table (usually DSDT or SSDT) referenced by `table_key` and returns a handle for further AML operations. 
+Internally this also parses the bytes of the referenced node at the start of the table's AML stream
+and sets up its fields as an `AmlSdtHandleInternal`, then adds it to `active_handles`. 
 
-`AmlData` represents the various operands that can be returned from `GetOption`.
-```rust
-pub enum AmlData {
-    None,
-    Opcode(u8),
-    NameString(AmlNameStringPath),
-    OpFn(AmlOp),
-    UnsignedInt(u64),
-    StringLiteral(String),
-    Child(AmlHandle),
-}
+#### `close_sdt`
+
+Finds the table corresponding to the node's `table_key` field and if modified, updates its checksum. 
+Removes the node from `active_handles`. 
+
+#### `iter_options`
+
+Iterates over a handle's `operands`.
+
+#### `set_option`
+
+Sets the operand at `idx` to `new_val` and sets `modified` = `true` for the handle.
+
+#### `get_child`
+
+First check if `HAS_CHILD_OBJ` is `true` in `attributes` (if there are no children, this function returns None.
+This is not to be confused with the outer `Result<Option<AmlHandle>, AmlError>`,
+which considers `None` / no children as a success case.) 
+
+AML objects are encoded in memory as such:
+
+```plain-text
+opcode | pkg_length | [ operands ] | [ TermList (children) ]
 ```
+
+So the first child of an object is at `offset + sizeof(pkg_length) + sizeof(operands)`.
+Once discovered this child becomes an active `AmlSdtHandleInternal`.
+
+The child derives `table_key` from its parent handle, and computes `parent_end` from the handle on which `get_child` is called.
+
+#### `get_sibling`
+
+As stated above, `get_sibling` and `get_child` together provide a full set of traversal operations. 
+
+In AML, children are consecutive, so the next sibling of a node is at `offset + size`. 
+
+There are no more siblings when `offset + size` >= `parent_end`. 
+
+The new handle derives `parent_end` from the sibling on which `get_sibling` is called. 
+The only exception is the "root" node -- the node on which `open_table` is initially called,
+since this node has no siblings and no parent from which to derive `parent_end`.
+As such, the `parent_end` of this table is simply at the end of the table, which is `table_length - ACPI_HEADER_SIZE`. 
 
 ## Guide-Level Explanation
 
 The general flow for using the `AmlParser` service will be:
+
 1. Set up and install necessary tables with the `AcpiProvider` service.
-2. Open a DSDT or SSDT with `open_sdt`.
+2. Open a DSDT or SSDT with `open_table`.
 3. Traverse as necessary through `get_child`, `get_sibling`, and `get_option`. 
 4. Make necessary modifications through `set_option`.
-5. Mark the node as closed for modifications with `close_sdt`.
+5. During traversal, close nodes which no longer need to be accessed through `close_handle`.
+6. When traversal / patching is complete, `close_handle` on the root node (originally opened with `open_table`). 
