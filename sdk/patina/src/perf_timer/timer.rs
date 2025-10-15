@@ -31,8 +31,7 @@ pub trait ArchTimerFunctionality: Send + Sync {
 
 #[cfg(target_arch = "x86_64")]
 pub mod x64 {
-    use core::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
-    use core::{arch::x86_64, mem};
+    use core::arch::x86_64;
     use spin::Once;
 
     use core::arch::x86_64::CpuidResult;

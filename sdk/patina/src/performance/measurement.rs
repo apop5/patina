@@ -42,7 +42,6 @@ use crate::{
     uefi_protocol::{performance_measurement::PerfAttribute, status_code::StatusCodeRuntimeProtocol},
 };
 
-use mu_rust_helpers::perf_timer::{Arch, ArchFunctionality};
 use patina_pi::status_code::{EFI_PROGRESS_CODE, EFI_SOFTWARE_DXE_BS_DRIVER};
 
 use r_efi::{

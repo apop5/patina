@@ -12,5 +12,4 @@
   "rust-analyzer.runnables.extraEnv": {
     "RUSTC_BOOTSTRAP": "1"
   },
-  "sarif-viewer.connectToGithubCodeScanning": "off",
 }

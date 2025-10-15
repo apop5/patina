@@ -1,11 +1,10 @@
 use spin::Once;
 
 use alloc::boxed::Box;
-use core::cell::OnceCell;
 
 use crate as patina;
 use crate::{
-    component::{IntoComponent, Storage, params::*},
+    component::{IntoComponent, params::*},
     error::EfiError,
     perf_timer::{config::TimerConfig, timer::ArchTimerFunctionality},
 };
@@ -20,7 +19,7 @@ impl PerfTimer {
     }
 
     // sherry: the problem is that we store a specific timer type but fetch trait object
-    fn entry_point(&self, config: Config<TimerConfig>, storage: &mut Storage) -> core::result::Result<(), EfiError> {
+    fn entry_point(&self, config: Config<TimerConfig>) -> core::result::Result<(), EfiError> {
         #[cfg(target_arch = "x86_64")]
         {
             use crate::perf_timer::timer::{ArchTimerFunctionality, x64::X64Timer};
