@@ -24,7 +24,7 @@ use r_efi::efi;
 ///
 /// count and size outputs both include the terminating end node.
 ///
-/// ## Safety
+/// ## SAFETY
 ///
 /// device_path input must be a valid pointer (i.e. not null) that points to
 /// a well-formed device path that conforms to UEFI spec 2.11 section 10.
@@ -76,7 +76,7 @@ pub fn device_path_node_count(
         return Err(efi::Status::INVALID_PARAMETER);
     }
     loop {
-        // Safety: caller must guarantee that device_path is a valid pointer to
+        // SAFETY: caller must guarantee that device_path is a valid pointer to
         // a well-formed device path as described in the function documentation above.
         let current_node = unsafe { current_node_ptr.read_unaligned() };
         let current_length: usize = u16::from_le_bytes(current_node.length).into();
@@ -88,6 +88,7 @@ pub fn device_path_node_count(
         }
 
         let offset = current_length.try_into().map_err(|_| efi::Status::INVALID_PARAMETER)?;
+        // SAFETY: caller must guarantee that device_path is well formed
         current_node_ptr = unsafe { current_node_ptr.byte_offset(offset) };
     }
     Ok((node_count, dev_path_size))
@@ -106,6 +107,8 @@ pub fn device_path_as_slice(
     device_path: *const efi::protocols::device_path::Protocol,
 ) -> Result<&'static [u8], efi::Status> {
     let (_, byte_count) = device_path_node_count(device_path)?;
+    // SAFETY: Caller must ensure that device_path is valid, that device_path
+    // will remain valid for lifetime of slice and that byte_count is valid
     unsafe { Ok(from_raw_parts(device_path as *const u8, byte_count)) }
 }
 
@@ -225,7 +228,9 @@ pub fn remaining_device_path(
     let mut b_ptr = b;
     let mut node_count = 0;
     loop {
+        // SAFETY: Caller must ensure pointer is a valid device_path
         let a_node = unsafe { *a_ptr };
+        // SAFETY: Caller must ensure pointer is a valid device_path
         let b_node = unsafe { *b_ptr };
 
         if is_device_path_end(&a_node) {
@@ -236,7 +241,12 @@ pub fn remaining_device_path(
 
         let a_length: usize = u16::from_le_bytes(a_node.length).into();
         let b_length: usize = u16::from_le_bytes(b_node.length).into();
+        // SAFETY: caller must assure that device path is valid and that memory will remain
+        // available for the lifetime of the slice
         let a_slice = unsafe { slice_from_raw_parts(a_ptr as *const u8, a_length).as_ref() };
+
+        // SAFETY: caller must assure that device path is valid and that memory will remain
+        // available for the lifetime of the slice
         let b_slice = unsafe { slice_from_raw_parts(b_ptr as *const u8, b_length).as_ref() };
 
         if a_slice != b_slice {
@@ -245,7 +255,9 @@ pub fn remaining_device_path(
 
         let a_offset: isize = a_length.try_into().ok()?;
         let b_offset: isize = b_length.try_into().ok()?;
+        // SAFETY: Caller must ensure that the device path is well formed and valid
         a_ptr = unsafe { a_ptr.byte_offset(a_offset) };
+        // SAFETY: Caller must ensure that the device path is well formed and valid
         b_ptr = unsafe { b_ptr.byte_offset(b_offset) };
     }
 }
@@ -253,6 +265,7 @@ pub fn remaining_device_path(
 /// Determines whether the given device path points to an end-of-device-path node.
 pub fn is_device_path_end(device_path: *const efi::protocols::device_path::Protocol) -> bool {
     let node_ptr = device_path;
+    // SAFETY: Caller must assure that device_path is valid and aligned
     if let Some(device_path_node) = unsafe { node_ptr.as_ref() } {
         device_path_node.r#type == efi::protocols::device_path::TYPE_END
             && device_path_node.sub_type == efi::protocols::device_path::End::SUBTYPE_ENTIRE
@@ -294,14 +307,17 @@ impl Eq for DevicePathNode {}
 impl DevicePathNode {
     /// Create a DevicePathNode from raw pointer.
     ///
-    /// ## Safety
+    /// # Safety
     ///
     /// Caller must ensure that the raw pointer points to a valid device path node structure.
     pub unsafe fn new(node: *const efi::protocols::device_path::Protocol) -> Option<Self> {
+        // SAFETY: Caller must ensure node is a valid and well formatted device path
         let header = unsafe { core::ptr::read_unaligned(node) };
         let node_len = u16::from_le_bytes(header.length);
         let data_len = node_len.checked_sub(size_of_val(&header).try_into().ok()?)?;
+        // SAFETY: Caller must ensure node is a valid and well formatted device path
         let data_ptr = unsafe { node.byte_offset(size_of_val(&header).try_into().ok()?) } as *const u8;
+        // SAFETY: Caller must ensure node is a valid and well formatted device path
         let data = unsafe { from_raw_parts(data_ptr, data_len.into()).to_vec() };
         Some(Self { header, data })
     }
@@ -371,10 +387,12 @@ impl Iterator for DevicePathWalker {
     fn next(&mut self) -> Option<Self::Item> {
         match self.next_node {
             Some(node) => {
+                // SAFETY: Caller must assure that node is a valid, well formatted device path
                 let current = unsafe { DevicePathNode::new(node)? };
                 if is_device_path_end(node) {
                     self.next_node = None;
                 } else {
+                    // SAFETY: Caller must ensure that node is a valid, well formatted device path
                     self.next_node = Some(unsafe { node.byte_offset(current.len().try_into().ok()?) });
                 }
                 Some(current)
