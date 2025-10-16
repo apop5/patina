@@ -228,10 +228,8 @@ pub fn remaining_device_path(
     let mut b_ptr = b;
     let mut node_count = 0;
     loop {
-        // SAFETY: Caller must ensure pointer is a valid device_path
-        let a_node = unsafe { *a_ptr };
-        // SAFETY: Caller must ensure pointer is a valid device_path
-        let b_node = unsafe { *b_ptr };
+        // SAFETY: Caller must ensure pointers are valid device_paths
+        let (a_node, b_node) = unsafe { (*a_ptr, *b_ptr) };
 
         if is_device_path_end(&a_node) {
             return Some((b_ptr, node_count));
