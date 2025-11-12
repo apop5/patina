@@ -8,6 +8,9 @@ edition.workspace = true
 readme = "README.md"
 description = "Common types and functionality used in UEFI development."
 
+[lints]
+workspace = true
+
 [[bench]]
 name = "bench_component"
 harness = false
