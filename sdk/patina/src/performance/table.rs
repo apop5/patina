@@ -474,6 +474,7 @@ mod tests {
         fbpt.add_record(GuidQwordEventRecord::new(1, 0, 10, guid, 64)).unwrap();
         fbpt.add_record(GuidQwordStringEventRecord::new(1, 0, 10, guid, 64, "test")).unwrap();
 
+        // SAFETY: Test code - creating a slice from the FBPT address for validation.
         let buffer = unsafe { slice::from_raw_parts(fbpt.fbpt_address() as *const u8, 1000) };
 
         let mut offset = 0;

@@ -480,8 +480,8 @@ fn get_module_guid_from_handle(
     let mut guid = efi::Guid::from_fields(0, 0, 0, 0, 0, &[0; 6]);
 
     let loaded_image_protocol = 'find_loaded_image_protocol: {
-        // SAFETY: `loaded_image_protocol` is the only reference to the `loaded_image::Protocol` in this scope.
         if let Ok(loaded_image_protocol) =
+            // SAFETY: `loaded_image_protocol` is the only reference to the `loaded_image::Protocol` in this scope.
             unsafe { boot_services.handle_protocol::<efi::protocols::loaded_image::Protocol>(handle) }
         {
             break 'find_loaded_image_protocol Some(loaded_image_protocol);
@@ -596,6 +596,7 @@ mod tests {
         boot_services
             .expect_locate_protocol()
             .once()
+            // SAFETY: Test code - creating a mutable reference to test protocol pointer for mocking.
             .returning_st(move |_| Ok(unsafe { &mut *status_code_runtime_protocol_ptr }));
 
         let mut runtime_services = MockRuntimeServices::new();
@@ -607,7 +608,9 @@ mod tests {
         let mut fbpt = MockFirmwareBasicBootPerfTable::new();
         fbpt.expect_report_table::<MockBootServices>().once().returning(|_, _| Ok(1));
 
+        // SAFETY: Test code - creating a reference to the boot_services for TplMutex initialization.
         let fbpt = TplMutex::new(unsafe { &*ptr::addr_of!(boot_services) }, Tpl::NOTIFY, fbpt);
+        // SAFETY: Test code - creating a static reference to the fbpt for callback testing.
         let fbpt = unsafe { &*ptr::addr_of!(fbpt) };
 
         event_callback::report_fbpt_record_buffer(
@@ -625,6 +628,7 @@ mod tests {
 
         let mut loaded_image_protocol = MaybeUninit::<efi::protocols::loaded_image::Protocol>::zeroed();
         let mut media_fw_vol_file_path_device_path = MaybeUninit::<MediaFwVolFilepathDevicePath>::zeroed();
+        // SAFETY: Test code - initializing test structures for device path protocol mocking.
         unsafe {
             media_fw_vol_file_path_device_path.assume_init_mut().header.r#type = TYPE_MEDIA;
             media_fw_vol_file_path_device_path.assume_init_mut().header.sub_type = Media::SUBTYPE_PIWG_FIRMWARE_FILE;
@@ -637,6 +641,7 @@ mod tests {
         }
         let loaded_image_protocol_address = loaded_image_protocol.as_mut_ptr() as usize;
 
+        // SAFETY: Test code - creating mock protocol reference from test address.
         boot_services.expect_handle_protocol::<efi::protocols::loaded_image::Protocol>().returning(move |_| unsafe {
             Ok((loaded_image_protocol_address as *mut efi::protocols::loaded_image::Protocol).as_mut().unwrap())
         });
@@ -645,6 +650,7 @@ mod tests {
 
         let mut fbpt = MockFirmwareBasicBootPerfTable::new();
         fbpt.expect_add_record().times(EXPECTED_NUMBER_OF_RECORD).returning(|_| Ok(()));
+        // SAFETY: Test code - creating reference to boot_services for TplMutex initialization.
         let fbpt = TplMutex::new(unsafe { &*ptr::addr_of!(boot_services) }, Tpl::NOTIFY, fbpt);
 
         // These functions call create_performance_measurement with the right arguments.
@@ -657,6 +663,7 @@ mod tests {
         static mut BOOT_SERVICES: Option<&MockBootServices> = None;
         static mut FBPT: Option<&TplMutex<'static, MockFirmwareBasicBootPerfTable, MockBootServices>> = None;
 
+        // SAFETY: Test code - initializing static variables with test references.
         unsafe {
             BOOT_SERVICES = Some(&*ptr::addr_of!(boot_services));
             FBPT = Some(&*ptr::addr_of!(fbpt));
@@ -671,6 +678,7 @@ mod tests {
             identifier: u32,
             attribute: PerfAttribute,
         ) -> efi::Status {
+            // SAFETY: Test code - reading CStr from test parameter.
             let string = unsafe { string.as_ref().map(|s| CStr::from_ptr(s).to_str().unwrap().to_string()) };
             let perf_id = identifier as u16;
             _create_performance_measurement::<MockBootServices, MockFirmwareBasicBootPerfTable>(
@@ -681,7 +689,9 @@ mod tests {
                 address,
                 perf_id,
                 attribute,
+                // SAFETY: Test code - unwrapping test statics that were initialized above.
                 unsafe { BOOT_SERVICES.unwrap() },
+                // SAFETY: Test code - unwrapping test statics that were initialized above.
                 unsafe { FBPT.unwrap() },
             )
             .unwrap();

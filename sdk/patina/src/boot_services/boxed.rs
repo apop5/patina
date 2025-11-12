@@ -28,6 +28,8 @@ impl<'a, T, B: BootServices> BootServicesBox<'a, T, B> {
     pub fn new(value: T, memory_type: EfiMemoryType, boot_services: &'a B) -> Self {
         let size = mem::size_of_val(&value);
         let ptr = boot_services.allocate_pool(memory_type, size).unwrap() as *mut T;
+        // SAFETY: ptr was just allocated with the exact size needed for T.
+        // The pointer is valid and uninitialized, making ptr::write safe.
         unsafe { ptr::write(ptr, value) };
         Self { boot_services, ptr }
     }
@@ -53,6 +55,8 @@ impl<'a, T, B: BootServices> BootServicesBox<'a, T, B> {
 
     /// Leaks the box, such that the memory will not be freed even if all references to it are dropped.
     pub fn leak(self) -> &'a mut T {
+        // SAFETY: ptr is valid for T as it was allocated by allocate_pool and initialized by ptr::write
+        // in new(). The returned reference has lifetime 'a, bounded by the BootServices reference.
         let leak = unsafe { self.ptr.as_mut() }.unwrap();
         mem::forget(self);
         leak
@@ -66,6 +70,7 @@ impl<'a, T, B: BootServices> BootServicesBox<'a, [T], B> {
     ///
     /// Caller must ensure that the pointer and len are correct and that rust pointer invariants (e.g. no aliasing) are respected.
     pub unsafe fn from_raw_parts_mut(ptr: *mut T, len: usize, boot_services: &'a B) -> Self {
+        // SAFETY: The caller guarantees that ptr and len are valid and that slice invariants are upheld.
         let ptr = unsafe { slice::from_raw_parts_mut(ptr, len) };
         Self { boot_services, ptr }
     }
@@ -81,12 +86,17 @@ impl<T: ?Sized, B: BootServices> Deref for BootServicesBox<'_, T, B> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
+        // SAFETY: ptr is valid and properly initialized. It was created by allocate_pool and
+        // initialized by ptr::write, or created through from_raw with a caller safety contract.
         unsafe { self.ptr.as_ref() }.unwrap()
     }
 }
 
 impl<T: ?Sized, B: BootServices> DerefMut for BootServicesBox<'_, T, B> {
     fn deref_mut(&mut self) -> &mut Self::Target {
+        // SAFETY: ptr is valid and properly initialized. It was created by allocate_pool and
+        // initialized by ptr::write, or created through from_raw with a caller safety contract.
+        // Exclusive access is ensured by &mut self.
         unsafe { self.ptr.as_mut() }.unwrap()
     }
 }
